@@ -322,6 +322,8 @@ function M.run(buf, opts)
   local ok, handle = pcall(vim.system, cmd, {
     cwd = paths.root,
     env = env,
+    -- Its own process group, so cancelling stops the processes it starts too.
+    detach = true,
     text = true,
     stdin = false,
     stdout = on_stdout,
@@ -366,13 +368,31 @@ function M.run(buf, opts)
   return job
 end
 
+--- Signal the agent's whole process group, falling back to the agent alone.
+local function stop(job)
+  local pid = job.handle and job.handle.pid
+  if not (pid and vim.uv.kill(-pid, 15) == 0) then
+    pcall(job.handle.kill, job.handle, 15)
+  end
+end
+
 function M.cancel(buf)
   local job = jobs[buf]
   if not job then
     return vim.notify("overlai: no agent is running on this buffer")
   end
   job.cancelled = true
-  job.handle:kill(15)
+  stop(job)
 end
+
+-- Agents run detached, so stop them when Neovim exits.
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  group = vim.api.nvim_create_augroup("overlai.agent", { clear = true }),
+  callback = function()
+    for _, job in pairs(jobs) do
+      stop(job)
+    end
+  end,
+})
 
 return M
