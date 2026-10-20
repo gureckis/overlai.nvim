@@ -1,0 +1,350 @@
+*overlai.txt*  Comment, suggest, and discuss edits with an LLM
+
+Author:  Todd Gureckis
+License: MIT
+
+==============================================================================
+CONTENTS                                                    *overlai-contents*
+
+  1. Introduction .............................. |overlai-intro|
+  2. Quick start ............................... |overlai-quickstart|
+  3. Commands .................................. |overlai-commands|
+  4. Windows and keys .......................... |overlai-windows|
+  5. Agents .................................... |overlai-agents|
+  6. The overlai CLI ........................... |overlai-cli|
+  7. Configuration ............................. |overlai-config|
+  8. Highlights ................................ |overlai-highlights|
+  9. Lua API ................................... |overlai-api|
+ 10. Review files .............................. |overlai-files|
+
+==============================================================================
+1. INTRODUCTION                                                *overlai-intro*
+
+overlai brings the review model of Word and Google Docs to any text file.
+You leave comments on passages. An LLM agent (Claude Code, Codex, or any
+program that can run a command) answers each one with a reply, a question of
+its own, or a suggested edit. You accept, reject or answer back, and the
+thread goes on until you resolve it.
+
+Comments live in a review file beside the document (|overlai-files|), never
+in the document itself. Agents never edit the document. Their changes arrive
+as suggestions that you accept one at a time.
+
+Terms:
+  thread        A conversation anchored to a passage of the document.
+  suggestion    Replacement text for a passage, carried by a message.
+  detached      A thread whose passage can no longer be found.
+  your turn     An open thread whose last message is from an agent.
+
+==============================================================================
+2. QUICK START                                            *overlai-quickstart*
+
+1. Select a passage and run `:'<,'>Overlai comment`. Type the comment and
+   press <C-s>.
+2. Run `:Overlai ask` to hand the document to the default agent (Claude).
+3. Watch the replies arrive, then open the panel with `:Overlai panel`. Press
+   `a` on a thread to accept its suggestion, `x` to reject it, `r` to reply,
+   or `R` to resolve it.
+
+Run |:checkhealth| overlai to check that the CLI and the agents are found.
+
+==============================================================================
+3. COMMANDS                                                 *overlai-commands*
+
+                                                                    *:Overlai*
+:Overlai {subcommand} [args]
+    With no subcommand, toggles the panel. Subcommands that take [id] act on
+    the thread under the cursor when the id is left out. In the panel, they
+    act on the thread under the panel's cursor.
+
+:[range]Overlai comment                                   *:Overlai-comment*
+    Start a thread on the selected text. Without a range, the comment goes
+    on the current line (minus its leading and trailing whitespace). A typed
+    line range (`:3,5Overlai comment`) covers whole lines.
+
+:[range]Overlai suggest                                   *:Overlai-suggest*
+    With a range, start a thread that suggests replacement text for the
+    selection. The compose window opens holding the current text; edit it
+    and submit. Without a range, suggest new text for the passage of the
+    thread under the cursor.
+
+:Overlai reply [id]                                         *:Overlai-reply*
+    Reply to a thread.
+
+:Overlai show [id]                                           *:Overlai-show*
+    Open a thread in a float: the passage, the conversation, and any pending
+    suggestion as a diff.
+
+:Overlai accept [id]                                       *:Overlai-accept*
+    Replace the passage in the buffer with the pending suggestion, and
+    resolve the thread. The buffer is left modified; write it when you are
+    ready.
+
+:Overlai reject [id]                                       *:Overlai-reject*
+    Reject the pending suggestion. The thread stays open, so you can reply.
+
+:Overlai resolve [id]                                     *:Overlai-resolve*
+:Overlai reopen [id]                                       *:Overlai-reopen*
+    Close or reopen a thread. Resolving rejects a pending suggestion.
+
+:Overlai delete [id]                                       *:Overlai-delete*
+    Delete a thread after confirmation.
+
+:Overlai next                                                *:Overlai-next*
+:Overlai prev                                                *:Overlai-prev*
+    Jump to the next or previous open thread, wrapping around. Adds to the
+    jumplist.
+
+:Overlai panel                                              *:Overlai-panel*
+    Toggle the side panel (|overlai-panel|).
+
+:[range]Overlai reanchor [id]                            *:Overlai-reanchor*
+    Attach a thread to the selected text. Without an id, choose among the
+    detached threads.
+
+:Overlai ask [agent] [instructions]                           *:Overlai-ask*
+    Hand the document to an agent (|overlai-agents|). Any words after the
+    agent's name are added to its prompt: >vim
+        :Overlai ask codex focus on the second section
+<
+:Overlai cancel                                             *:Overlai-cancel*
+    Stop the agent running on this buffer.
+
+:Overlai log                                                   *:Overlai-log*
+    Open the agent log, which holds each run's full output.
+
+:Overlai attach                                             *:Overlai-attach*
+:Overlai detach                                             *:Overlai-detach*
+    Start or stop tracking the current buffer. Buffers whose files have a
+    review file are attached automatically (see `auto_attach`).
+
+:Overlai install-skill [dir]                         *:Overlai-install-skill*
+    Symlink the skill into `~/.claude/skills/` (Claude Code) and
+    `~/.codex/skills/` (Codex, or `$CODEX_HOME/skills/`), or only into [dir],
+    and the `overlai` command into `~/.local/bin/`, so agents started outside
+    Neovim know the workflow.
+
+<Plug> mappings ~
+                                                               *overlai-<Plug>*
+overlai sets no global mappings. These are provided for your own: >
+    <Plug>(overlai-comment)     n, x
+    <Plug>(overlai-suggest)     n, x
+    <Plug>(overlai-reply)       <Plug>(overlai-show)
+    <Plug>(overlai-accept)      <Plug>(overlai-reject)
+    <Plug>(overlai-resolve)     <Plug>(overlai-panel)
+    <Plug>(overlai-next)        <Plug>(overlai-prev)
+    <Plug>(overlai-ask)
+<
+==============================================================================
+4. WINDOWS AND KEYS                                          *overlai-windows*
+
+In the document ~
+Each open thread's passage is underlined (`OverlaiRange`, or
+`OverlaiRangeAgent` for threads an agent started), with a sign on each of its
+lines and a preview of the latest message at the end of its first line. The
+thread under the cursor is highlighted with `OverlaiCurrent`. A pending
+suggestion strikes through the text it replaces and shows the new text: inline
+for a single line, as virtual lines below for several.
+
+                                                               *overlai-panel*
+The panel ~
+A side window listing the threads on the current document in document order.
+Each entry shows a marker, the id, the line, the passage, and the latest
+messages. The markers are:
+    ●   your turn (an agent spoke last)
+    ○   waiting on the agent
+    ±   a suggestion is pending
+    ✓   resolved
+    ?   detached
+The panel follows the window you edit in, and its cursor follows yours. The
+other way round too: as you move through the panel, the document window
+scrolls to each thread's passage while focus stays in the panel (turn this
+off with `panel.auto_preview = false`).
+
+    <CR>    go to the passage
+    ]]      next thread
+    [[      previous thread
+    K       go to the passage and open the thread
+    r       reply
+    a       accept the suggestion
+    x       reject the suggestion
+    R       resolve or reopen
+    dd      delete
+    H       show or hide resolved threads
+    <C-l>   re-read the review file
+    q       close
+    g?      list these keys
+
+The thread window ~
+Opened by |:Overlai-show|. The keys `r`, `a`, `x` and `R` work as in the
+panel. `q` or <Esc> closes it.
+
+The compose window ~
+A markdown buffer for comments, replies and suggestions. Submit with <C-s>
+(in normal or insert mode) or `:w`. Cancel with `q` in normal mode.
+
+All of these keys can be changed or turned off under `mappings`
+(|overlai-config|).
+
+==============================================================================
+5. AGENTS                                                     *overlai-agents*
+
+|:Overlai-ask| writes the buffer (see `agent.save`), then starts the agent in
+the document's root with:
+  - `overlai` on its PATH;
+  - `OVERLAI_AUTHOR` set to the agent's name and `OVERLAI_ROLE=agent`, so its
+    replies are credited to it;
+  - a prompt that names the file, says to start with `overlai agenda`, and
+    sets the rules: answer every thread waiting on it, put edits in
+    suggestions, never edit the file.
+
+Built-in agents ~
+  claude    `claude -p` with stream-json output. Its tools are limited to
+            `overlai` commands, Read, Grep and Glob; Edit and Write are
+            disallowed.
+  codex     `codex exec --sandbox workspace-write` in the root.
+
+With `agent.web = true`, claude also gets WebSearch and WebFetch, codex runs
+with `--search`, and the prompt tells the agent it may look things up.
+
+While the agent runs, the panel and `require("overlai").status()` show its
+latest step. Its replies appear as they are written. When it ends, a
+notification summarizes what it did. If the document's contents changed
+during the run, overlai warns and reloads the buffer.
+
+Custom agents ~
+An agent is a function that takes the prompt and a context table and returns
+the command to run: >lua
+    require("overlai").setup({
+      agent = {
+        agents = {
+          sonnet = function(prompt, ctx)
+            return { "claude", "-p", prompt, "--model", "sonnet",
+                     "--allowedTools", "Bash(overlai:*),Read,Grep,Glob" }
+          end,
+        },
+      },
+    })
+<
+`ctx` holds `file`, `rel` (path from the root), `root`, `author` and `agent`.
+
+==============================================================================
+6. THE OVERLAI CLI                                               *overlai-cli*
+
+`bin/overlai` in the plugin directory is the command agents use, and you can
+use it at a shell too. It runs the plugin's Lua under `nvim --clean -l`.
+`overlai help` prints: >
+    agenda FILE              threads waiting on you, with context
+    list FILE [--all]        one line per thread
+    show FILE ID             one thread in full
+    reply FILE ID [--body T] [--suggest T] [--quote Q]
+    comment FILE --quote Q [--line N] [--body T] [--suggest T]
+    resolve FILE ID / reopen FILE ID
+      --as NAME  --role human|agent  --json
+<
+Any one of T and Q may be `-`, to read from stdin. Quotes match regardless
+of line breaks and runs of spaces. A quote that occurs more than once must be
+narrowed with --line.
+
+==============================================================================
+7. CONFIGURATION                                              *overlai-config*
+
+Call `require("overlai").setup()` with any of these (the defaults shown): >lua
+    {
+      author = nil,             -- your name on comments; $USER if nil
+      dir_name = ".review",
+      auto_attach = true,
+      show_resolved = false,
+      signs = true,
+      sign_text = "▎",
+      virt_text = true,
+      virt_text_width = 50,
+      icons = {
+        human = "󰆉 ", agent = "󰚩 ", suggestion = "± ", resolved = "✓ ",
+        detached = "? ", your_turn = "● ", their_turn = "○ ",
+      },
+      panel = { width = 50, position = "right", preview_messages = 2,
+                auto_preview = true },
+      float = { border = "rounded", max_width = 80, max_height = 24 },
+      mappings = {
+        panel = { jump = "<CR>", next = "]]", prev = "[[", show = "K",
+                  reply = "r", accept = "a",
+                  reject = "x", toggle_resolved = "R", delete = "dd",
+                  toggle_show_resolved = "H", refresh = "<C-l>",
+                  close = "q", help = "g?" },
+        thread = { reply = "r", accept = "a", reject = "x",
+                   toggle_resolved = "R", close = "q" },
+        compose = { submit = "<C-s>", cancel = "q" },
+      },
+      agent = {
+        default = "claude",
+        save = true,
+        web = false,            -- allow web search and fetching pages
+        instructions = nil,     -- appended to every prompt
+        prompt = nil,           -- a string with %{rel} %{root} %{author}
+                                -- %{agent} %{instructions}, or function(ctx)
+        agents = {},
+      },
+    }
+<
+Set any mapping to false to turn it off.
+
+==============================================================================
+8. HIGHLIGHTS                                             *overlai-highlights*
+
+All are defined with `default`, so a colorscheme or your config can override
+them.
+
+  OverlaiRange          passage of a thread you started
+  OverlaiRangeAgent     passage of a thread an agent started
+  OverlaiRangeResolved  passage of a resolved thread (when shown)
+  OverlaiCurrent        passage under the cursor
+  OverlaiSign           sign for a thread you started
+  OverlaiSignAgent      sign for a thread an agent started
+  OverlaiSignResolved   sign for a resolved thread
+  OverlaiPreview        end-of-line preview of your messages
+  OverlaiAuthorHuman    human author names
+  OverlaiAuthorAgent    agent author names and previews
+  OverlaiDelete         text a suggestion would replace
+  OverlaiAdd            suggested text
+  OverlaiTitle          headings in overlai windows
+  OverlaiMuted          secondary text
+  OverlaiId             thread ids
+
+==============================================================================
+9. LUA API                                                       *overlai-api*
+
+require("overlai").setup({opts})                            *overlai.setup()*
+    Configure overlai. Optional; the defaults work without it.
+
+require("overlai").status()                                *overlai.status()*
+    What the agent on the current buffer is doing, or "" when none is
+    running. For statuslines: >lua
+        lualine_x = { require("overlai").status }
+<
+require("overlai.actions")                                *overlai.actions*
+    The functions behind the commands, each taking a buffer (0 for the
+    current one) and, where it applies, a thread id: `comment(buf, cmd)`,
+    `suggest(buf, cmd)`, `reply`, `show`, `accept`, `reject`, `resolve`,
+    `reopen`, `toggle_resolved`, `delete`, `goto(buf, dir)`,
+    `reanchor(buf, cmd, id)`, `ask(buf, agent, instructions)`, `cancel(buf)`.
+
+==============================================================================
+10. REVIEW FILES                                               *overlai-files*
+
+A document's review file is `.review/<path>.json` under its root: the nearest
+ancestor with a `.review/` directory, else the git root, else the document's
+directory. Review files are pretty-printed JSON with a fixed key order, so
+they can be committed and diffed. They can also be gitignored if you would
+rather keep reviews private.
+
+Each thread stores its passage as a quote plus the text around it.
+Matching ignores differences in whitespace, so re-wrapping a paragraph keeps
+its threads attached. When the quoted text is edited, the surrounding text
+places the thread on the new wording. While a buffer is open, the passages are
+tracked as you edit and saved when you write the buffer.
+
+The full format and the agent protocol are in `docs/format.md` in the plugin
+directory.
+
+ vim:tw=78:ts=8:ft=help:norl:

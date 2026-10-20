@@ -1,0 +1,6 @@
+#!/bin/sh
+# overlai: read and answer review threads from the shell (see `overlai help`).
+# Runs the plugin's Lua under a clean, headless Neovim.
+here=$(cd "$(dirname "$0")" && pwd -P)
+NVIM=${OVERLAI_NVIM:-nvim}
+exec "$NVIM" --clean --headless -l "$here/../scripts/cli.lua" "$@"
