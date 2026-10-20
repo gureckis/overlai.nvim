@@ -202,4 +202,13 @@ T["bin/overlai"]["runs as a real command"] = function()
   has(res.stderr, "no thread t9")
 end
 
+T["bin/overlai"]["works through a symlink, as install-skill links it"] = function()
+  local links = vim.fn.tempname()
+  vim.fn.mkdir(links, "p")
+  vim.uv.fs_symlink(H.root .. "/bin/overlai", links .. "/overlai")
+  local res = vim.system({ links .. "/overlai", "list", file }, { env = { OVERLAI_NVIM = vim.v.progpath } }):wait()
+  eq(res.code, 0)
+  has(res.stdout, "no open threads")
+end
+
 return T

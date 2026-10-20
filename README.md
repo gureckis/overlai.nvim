@@ -55,21 +55,33 @@ it lands, and to push back on it in place.
 
 ## Requirements
 
-- Neovim 0.10 or later
-- For hand-offs: [Claude Code](https://claude.com/claude-code) (`claude`)
-  and/or [Codex](https://github.com/openai/codex) (`codex`) on your PATH
+- **Neovim 0.10 or later.** Nothing else is needed for commenting and
+  reviewing: the `overlai` command that agents use runs under `nvim -l`.
+- **macOS or Linux.** The `overlai` command is a POSIX shell script, so
+  Windows is not supported (WSL should work).
+- **For hand-offs:** [Claude Code](https://claude.com/claude-code) (`claude`)
+  and/or [Codex](https://github.com/openai/codex) (`codex`), installed, on
+  your PATH, and signed in. A hand-off runs the agent under your own account,
+  so its usage is billed there, as for any other Claude Code or Codex session.
+- **Optional:** a [Nerd Font](https://www.nerdfonts.com) for the icons in the
+  panel and the end-of-line notes. Without one, set `icons` (see
+  [Configuration](#configuration)) to plain characters.
 
 ## Install
 
-With [lazy.nvim](https://github.com/folke/lazy.nvim):
+### lazy.nvim
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim), add a spec such as
+`lua/plugins/overlai.lua`:
 
 ```lua
-{
+return {
   "gureckis/overlai.nvim",
   cmd = "Overlai",
   event = "BufReadPost",
   opts = {
-    author = "todd",
+    author = "your name",   -- shown on your comments (default: $USER)
+    -- agent = { web = true },  -- let agents search the web and read pages
   },
   keys = {
     { "<leader>rc", ":Overlai comment<CR>", mode = { "n", "x" }, desc = "Comment" },
@@ -82,15 +94,46 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
     { "<leader>rp", "<Cmd>Overlai panel<CR>", desc = "Panel" },
     { "<leader>rl", "<Cmd>Overlai ask claude<CR>", desc = "Hand off to Claude" },
     { "<leader>rL", "<Cmd>Overlai ask codex<CR>", desc = "Hand off to Codex" },
+    { "<leader>rq", "<Cmd>Overlai cancel<CR>", desc = "Cancel agent" },
     { "]r", "<Cmd>Overlai next<CR>", desc = "Next thread" },
     { "[r", "<Cmd>Overlai prev<CR>", desc = "Previous thread" },
   },
 }
 ```
 
-overlai sets no global keys of its own. Use the spec above, `:Overlai`, or the
-`<Plug>(overlai-…)` mappings. Run `:checkhealth overlai` to confirm it can
-find the CLI and your agents.
+### vim.pack (Neovim 0.12)
+
+```lua
+vim.pack.add({ "https://github.com/gureckis/overlai.nvim" })
+require("overlai").setup({ author = "your name" })
+```
+
+### Other plugin managers, or by hand
+
+Any manager that installs from GitHub works; `setup()` is optional. By hand:
+
+```sh
+git clone https://github.com/gureckis/overlai.nvim \
+  ~/.local/share/nvim/site/pack/plugins/start/overlai.nvim
+```
+
+then, in your config, `require("overlai").setup({ author = "your name" })`.
+
+The keys above are only a suggestion. overlai sets no global keys of its own:
+use your own, `:Overlai`, or the `<Plug>(overlai-…)` mappings.
+
+### After installing
+
+1. Run `:checkhealth overlai`. It checks your Neovim version, the `overlai`
+   command, and which agents it can find.
+2. Optionally, run `:Overlai install-skill`. It links the skill into
+   `~/.claude/skills/` and `~/.codex/skills/`, and `overlai` into
+   `~/.local/bin`, so Claude Code or Codex sessions you start yourself know
+   how to answer comments (see [Agents outside Neovim](#agents-outside-neovim)).
+   Hand-offs from Neovim don't need it.
+3. Decide whether to commit the comments. They live in `.review/` at the
+   project root. Commit it to share the review with collaborators, or add
+   `.review/` to `.gitignore` to keep it private.
 
 ## A session
 

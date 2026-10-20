@@ -1,6 +1,16 @@
 #!/bin/sh
 # overlai: read and answer review threads from the shell (see `overlai help`).
 # Runs the plugin's Lua under a clean, headless Neovim.
-here=$(cd "$(dirname "$0")" && pwd -P)
+self=$0
+# Follow symlinks (e.g. ~/.local/bin/overlai from :Overlai install-skill) to
+# find the plugin directory.
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+here=$(cd "$(dirname "$self")" && pwd -P)
 NVIM=${OVERLAI_NVIM:-nvim}
 exec "$NVIM" --clean --headless -l "$here/../scripts/cli.lua" "$@"
