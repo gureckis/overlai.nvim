@@ -297,6 +297,29 @@ T["the thread window shows the conversation and the diff"] = function()
   eq(child.bo.filetype, "markdown")
 end
 
+T["the thread window offers accept and reject only for a suggestion"] = function()
+  local function footer()
+    child.api.nvim_win_set_cursor(0, { 5, 5 })
+    child.cmd("Overlai show")
+    local f = child.lua_get(
+      "vim.fn.join(vim.tbl_map(function(c) return c[1] end, vim.api.nvim_win_get_config(0).footer), '')"
+    )
+    child.type_keys("q")
+    return f
+  end
+  H.cli({ "comment", file, "--quote", "the key quantity", "--body", "Vague" }, human)
+  edit()
+  local plain = footer()
+  eq(plain:find("accept", 1, true), nil)
+  eq(plain:find("reject", 1, true), nil)
+  eq(plain:find("resolve", 1, true) ~= nil, true)
+  H.cli({ "reply", file, "t1", "--body", "Try this", "--suggest", "the crux" })
+  child.cmd("edit")
+  local offered = footer()
+  eq(offered:find("accept", 1, true) ~= nil, true)
+  eq(offered:find("reject", 1, true) ~= nil, true)
+end
+
 T["detached threads can be reattached"] = function()
   H.cli({ "comment", file, "--quote", "is the key quantity.", "--body", "x" }, human)
   H.write(file, (DOC:gsub("is the key quantity%.", "matters.")))

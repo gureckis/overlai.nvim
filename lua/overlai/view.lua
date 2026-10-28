@@ -40,6 +40,22 @@ local function fill(buf, source, thread, width)
   return #b.lines
 end
 
+--- The key hints under the thread; accept and reject only when there is a
+--- suggestion to act on.
+local function footer(thread)
+  local keys = config.options.mappings.thread
+  local pending = require("overlai.model").pending(thread) ~= nil
+  local hints = {}
+  local offers = { { "reply", "reply" }, { "accept", "accept" }, { "reject", "reject" }, { "toggle_resolved", "resolve" } }
+  for _, k in ipairs(offers) do
+    local offered = pending or (k[1] ~= "accept" and k[1] ~= "reject")
+    if keys[k[1]] and offered then
+      hints[#hints + 1] = keys[k[1]] .. " " .. k[2]
+    end
+  end
+  return " " .. table.concat(hints, " · ") .. " "
+end
+
 --- Show a thread. `opts.enter` focuses the window.
 function M.open(source, id, opts)
   opts = opts or {}
@@ -57,12 +73,6 @@ function M.open(source, id, opts)
   local height = math.min(fill(buf, source, thread, width - 2), o.float.max_height)
 
   local keys = o.mappings.thread
-  local hints = {}
-  for _, k in ipairs({ { "reply", "reply" }, { "accept", "accept" }, { "reject", "reject" }, { "toggle_resolved", "resolve" } }) do
-    if keys[k[1]] then
-      hints[#hints + 1] = keys[k[1]] .. " " .. k[2]
-    end
-  end
   local win = vim.api.nvim_open_win(buf, opts.enter ~= false, {
     relative = "cursor",
     row = 1,
@@ -72,7 +82,7 @@ function M.open(source, id, opts)
     style = "minimal",
     border = o.float.border,
     title = " overlai ",
-    footer = " " .. table.concat(hints, " · ") .. " ",
+    footer = footer(thread),
     footer_pos = "right",
   })
   vim.wo[win].wrap = true
@@ -112,6 +122,7 @@ function M.refresh(source)
     return M.close()
   end
   fill(current.buf, source, thread, vim.api.nvim_win_get_width(current.win) - 2)
+  vim.api.nvim_win_set_config(current.win, { footer = footer(thread), footer_pos = "right" })
 end
 
 function M.is_open()
